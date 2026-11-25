@@ -1,0 +1,6 @@
+{
+  "name": "JAYRAIDXYZ — Solana 1.0 Explained",
+  "description": "An interactive 55-second 9:16 vertical Web3 documentary and flashcard breakdown explaining Solana's transition from Mainnet Beta to Solana 1.0.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

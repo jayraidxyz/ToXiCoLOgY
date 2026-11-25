@@ -1,0 +1,86 @@
+import React from 'react';
+import { X_PROFILE } from '../data/archive';
+
+interface CrownMarkProps {
+  className?: string;
+  glow?: boolean;
+  strokeWidth?: number;
+}
+
+export function CrownMark({
+  className = 'h-6 w-6',
+  glow = true,
+  strokeWidth = 3.2,
+}: CrownMarkProps) {
+  return (
+    <svg
+      viewBox="0 0 64 64"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      style={
+        glow
+          ? { filter: 'drop-shadow(0 0 12px rgba(225, 0, 0, 0.55))' }
+          : undefined
+      }
+      aria-hidden="true"
+    >
+      <path
+        d="M14 44L11 21L24 33L32 16L40 33L53 21L50 44C39.5 47 24.5 47 14 44Z"
+        stroke="#FF241A"
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14 50C25 52.5 39 52.5 50 50"
+        stroke="#E10000"
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+export function CrownDivider({ className = '' }: { className?: string }) {
+  return (
+    <div
+      className={`flex items-center gap-4 py-2 ${className}`}
+      aria-hidden="true"
+    >
+      <div className="h-[1.5px] flex-1 bg-[#2A2A2A]" />
+      <CrownMark className="h-5 w-5 shrink-0" />
+      <div className="h-[1.5px] flex-1 bg-[#2A2A2A]" />
+    </div>
+  );
+}
+
+interface MascotAvatarProps {
+  size?: 'sm' | 'md' | 'lg';
+  className?: string;
+}
+
+export function MascotAvatar({
+  size = 'md',
+  className = '',
+}: MascotAvatarProps) {
+  const sizeClass =
+    size === 'sm'
+      ? 'h-10 w-10 p-0.5'
+      : size === 'lg'
+      ? 'h-24 w-24 p-1 sm:h-28 sm:w-28'
+      : 'h-16 w-16 p-1';
+
+  return (
+    <div
+      className={`shrink-0 rounded-full bg-[#050505] ring-2 ring-[#E10000] shadow-[0_0_24px_rgba(225,0,0,0.35)] ${sizeClass} ${className}`}
+    >
+      <img
+        src={X_PROFILE.avatarPath}
+        alt="Toxicology peace-sign mascot"
+        referrerPolicy="no-referrer"
+        className="h-full w-full rounded-full object-cover"
+      />
+    </div>
+  );
+}

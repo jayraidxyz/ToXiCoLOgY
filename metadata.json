@@ -1,0 +1,8 @@
+{
+  "name": "Toxicology Archive (@toxicologyavp) — Web3 Research & Breakdowns",
+  "description": "Mobile-first Web3 research archive for @toxicologyavp featuring the 3-Step Web3 Filter, verified document vault, interactive Solana 1.0 9:16 documentary, and Partner hub.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

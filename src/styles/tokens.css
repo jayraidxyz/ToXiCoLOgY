@@ -1,0 +1,45 @@
+:root {
+  /* Core Surfaces */
+  --bg: #050505;
+  --surface: #0E0E0E;
+  --surface-2: #161616;
+  --border: #2A2A2A;
+
+  /* Brand Red System (10% Accent Budget) */
+  --red: #E10000;
+  --red-hover: #FF2A1F;
+  --red-text: #FF6B63; /* >= 5.9:1 WCAG AA contrast for small text on #050505/#0E0E0E/#161616 */
+  --red-glow: rgba(225, 0, 0, 0.4);
+  --crown-glow: 0 0 24px rgba(225, 0, 0, 0.45);
+
+  /* Mascot White & Neutral Text */
+  --text: #FFFFFF;
+  --white-soft: #F2F2F2;
+  --muted: #A3A3A3;
+
+  /* Shape & 3D Clay Depth */
+  --radius-card: 20px;
+  --radius-pill: 999px;
+  --clay-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --clay-shadow: 0 12px 32px rgba(0, 0, 0, 0.58);
+
+  /* 8-pt Spacing Scale */
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-6: 48px;
+
+  /* Type Scale */
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 20px;
+  --text-xl: 28px;
+  --text-2xl: 40px;
+
+  /* Motion (150-250ms) */
+  --motion-fast: 160ms;
+  --motion-base: 220ms;
+  --ease-snappy: cubic-bezier(0.16, 1, 0.3, 1);
+}
