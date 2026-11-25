@@ -18,10 +18,10 @@ export function CrownMark({
       viewBox="0 0 64 64"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={className}
+      className={cn('max-w-full shrink-0', className)}
       style={
         glow
-          ? { filter: 'drop-shadow(0 0 12px rgba(225, 0, 0, 0.55))' }
+          ? { filter: 'drop-shadow(0 0 12px rgba(225, 0, 0, 0.5))' }
           : undefined
       }
       aria-hidden="true"
@@ -46,12 +46,12 @@ export function CrownMark({
 export function CrownDivider({ className = '' }: { className?: string }) {
   return (
     <div
-      className={cn('flex items-center gap-4 py-2', className)}
+      className={cn('flex items-center gap-4 py-1', className)}
       aria-hidden="true"
     >
-      <div className="h-[1.5px] flex-1 bg-[#2A2A2A]" />
+      <div className="h-px flex-1 bg-[var(--border)]" />
       <CrownMark className="h-5 w-5 shrink-0" />
-      <div className="h-[1.5px] flex-1 bg-[#2A2A2A]" />
+      <div className="h-px flex-1 bg-[var(--border)]" />
     </div>
   );
 }
@@ -69,21 +69,21 @@ export function MascotAvatar({
 
   const sizeClass =
     size === 'sm'
-      ? 'h-11 w-11 p-[3px]'
+      ? 'h-10 w-10 p-[3px]'
       : size === 'lg'
-      ? 'h-24 w-24 p-1 sm:h-28 sm:w-28 sm:p-[5px]'
-      : 'h-16 w-16 p-1';
+      ? 'h-20 w-20 p-1 sm:h-24 sm:w-24 sm:p-[5px]'
+      : 'h-14 w-14 p-1';
 
   return (
     <div
       className={cn(
-        'shrink-0 rounded-full border-2 border-[#E10000] bg-[#050505] shadow-[0_0_24px_rgba(225,0,0,0.42)]',
+        'shrink-0 rounded-full border-2 border-[var(--accent)] bg-[#050505] shadow-[0_0_20px_var(--accent-glow)]',
         sizeClass,
         className
       )}
     >
       {imgFailed ? (
-        <div className="flex h-full w-full items-center justify-center rounded-full bg-[#E10000]">
+        <div className="flex h-full w-full items-center justify-center rounded-full bg-[var(--accent)]">
           <CrownMark className="h-1/2 w-1/2" glow={false} />
         </div>
       ) : (
@@ -92,7 +92,7 @@ export function MascotAvatar({
           alt="Toxicology peace-sign mascot wearing a black cap with a neon-red crown"
           referrerPolicy="no-referrer"
           onError={() => setImgFailed(true)}
-          className="h-full w-full rounded-full object-cover"
+          className="h-auto max-w-full rounded-full object-cover aspect-square"
         />
       )}
     </div>

@@ -9,7 +9,7 @@ function Skeleton({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn('animate-pulse rounded-[20px] bg-[#161616]', className)}
+      className={cn('animate-pulse rounded-xl bg-[var(--surface-2)]', className)}
       {...props}
     />
   );
@@ -21,17 +21,19 @@ function ArchiveSkeletonLoader({
   label?: string;
 }) {
   return (
-    <Card className="p-6 sm:p-8" aria-busy="true" aria-live="polite">
+    <Card className="p-4 sm:p-6" aria-busy="true" aria-live="polite">
       <div className="flex items-center gap-4">
         <MascotAvatar size="sm" />
-        <div className="flex-1 space-y-2">
-          <p className="font-display text-sm font-bold text-white">{label}</p>
+        <div className="min-w-0 flex-1 space-y-2">
+          <p className="font-display text-sm font-bold text-[var(--text)]">
+            {label}
+          </p>
           <Skeleton className="h-2.5 w-40 rounded-full" />
         </div>
       </div>
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Skeleton className="h-28 border-[1.5px] border-[#2A2A2A]" />
-        <Skeleton className="h-28 border-[1.5px] border-[#2A2A2A]" />
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4">
+        <Skeleton className="h-28 border border-[var(--border)]" />
+        <Skeleton className="h-28 border border-[var(--border)]" />
       </div>
     </Card>
   );

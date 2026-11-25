@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Startup connection health check test
+    match /test/connection {
+      allow read: if true;
+    }
+
+    // User profile document: strictly isolated to the user
+    match /users/{userId} {
+      allow read, get: if isOwner(userId);
+      allow create: if isOwner(userId)
+                    && isValidId(userId)
+                    && request.resource.data.userId == userId
+                    && request.resource.data.email is string
+                    && request.resource.data.createdAt is string;
+      allow update: if isOwner(userId)
+                    && request.resource.data.userId == userId
+                    && request.resource.data.email is string;
+      allow delete: if isOwner(userId);
+
+      // Subcollection: Persistent Gemini AI Chat History
+      match /chatHistory/{messageId} {
+        allow read, list, get: if isOwner(userId);
+        allow create: if isOwner(userId)
+                      && isValidId(messageId)
+                      && request.resource.data.userId == userId
+                      && request.resource.data.role in ['user', 'model']
+                      && request.resource.data.text is string
+                      && request.resource.data.text.size() <= 12000
+                      && request.resource.data.createdAt is string;
+        allow update: if isOwner(userId)
+                      && request.resource.data.userId == userId;
+        allow delete: if isOwner(userId);
+      }
+
+      // Subcollection: Synced Custom Archive Documents
+      match /savedDocs/{docId} {
+        allow read, list, get: if isOwner(userId);
+        allow create: if isOwner(userId)
+                      && isValidId(docId)
+                      && request.resource.data.userId == userId
+                      && request.resource.data.title is string
+                      && request.resource.data.title.size() <= 256
+                      && request.resource.data.content is string
+                      && request.resource.data.content.size() <= 30000;
+        allow update: if isOwner(userId)
+                      && request.resource.data.userId == userId;
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 @import "./styles/tokens.css";
 
 @theme {
@@ -32,13 +33,25 @@
   }
 }
 
-/* Soft 3D clay card surface */
+/* Responsive fluid heading utilities */
+.heading-page {
+  font-size: clamp(1.375rem, 3.2vw, 2.25rem);
+  line-height: 1.15;
+}
+
+.heading-section {
+  font-size: clamp(1.125rem, 2.4vw, 1.625rem);
+  line-height: 1.25;
+}
+
+/* Guided Workflow Section Container (rounded-2xl, 1px subtle border) */
 .clay-card {
   background-color: var(--surface);
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
   box-shadow: var(--clay-highlight), var(--clay-shadow);
   transition:
+    background-color var(--motion-fast) var(--ease-snappy),
     border-color var(--motion-fast) var(--ease-snappy),
     box-shadow var(--motion-base) var(--ease-snappy),
     transform var(--motion-fast) var(--ease-snappy);
@@ -46,11 +59,20 @@
 
 .clay-card-interactive:hover,
 .clay-card-interactive:focus-within {
-  border-color: rgba(225, 0, 0, 0.6);
+  border-color: var(--accent);
   box-shadow:
     var(--clay-highlight),
     var(--clay-shadow),
-    0 0 24px rgba(225, 0, 0, 0.22);
+    0 0 20px var(--accent-glow);
+}
+
+/* Hide scrollbars cleanly for horizontal tab bars */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* Faint red grid for banner and 9:16 stage */

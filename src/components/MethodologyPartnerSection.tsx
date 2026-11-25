@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, Check, Copy, Download, Send } from 'lucide-react';
+import { ArrowRight, Check, Copy, Download, Layers, Send } from 'lucide-react';
 import { PARTNERSHIP_FORMATS, X_PROFILE } from '../data/archive';
 import { CrownMark } from './CrownMark';
 import { Button } from './ui/button';
@@ -103,60 +103,60 @@ export function MethodologyPartnerSection() {
   };
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-      {/* Left: Signal, Not Noise Curation Methodology (Zero lime-green!) */}
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+      {/* Left: Signal, Not Noise Curation Methodology */}
       <Card
         id="signal-methodology"
-        className="scroll-mt-24 flex flex-col justify-between p-4 sm:p-8 lg:col-span-5"
+        className="scroll-mt-28 flex flex-col justify-between p-4 sm:p-6 lg:col-span-5"
       >
-        <div>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#FF6B63]">
-            <CrownMark className="h-4 w-4 shrink-0" />
-            <span>HOW IT WORKS</span>
-            <span aria-hidden="true">·</span>
-            <span className="font-mono">{X_PROFILE.handle}</span>
-          </div>
-          <h2 className="mt-2 font-display text-[28px] font-bold leading-tight tracking-tight text-white">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold tracking-widest uppercase text-[var(--muted)]">
+            HOW IT WORKS ·{' '}
+            <span className="font-mono text-[var(--accent-text)]">
+              {X_PROFILE.handle}
+            </span>
+          </p>
+          <h2 className="heading-section mt-1.5 font-display font-bold tracking-tight text-[var(--text)]">
             Signal, Not Noise
           </h2>
-          <p className="mt-2 text-base leading-relaxed text-[#A3A3A3]">
+          <p className="mt-1.5 text-sm leading-relaxed text-[var(--muted)]">
             Every thread on X links back to a permanent checklist or visual
             breakdown here so followers can verify claims straight away.
           </p>
 
-          {/* Clean Red-on-Black Methodology Diagram */}
-          <div className="mt-6 space-y-3">
-            <div className="rounded-[20px] border-[1.5px] border-[#2A2A2A] bg-[#161616] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-              <div className="flex items-center justify-between">
-                <span className="font-display text-xl font-bold text-white">
+          {/* Clean Methodology Cards */}
+          <div className="mt-5 space-y-3">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex items-center rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-0.5 font-display text-xs font-bold tabular-nums text-[var(--accent-text)]">
+                  Phase 01
+                </span>
+                <span className="font-display text-base font-bold text-[var(--text)]">
                   I find
                 </span>
-                <span className="font-display text-xl font-bold tabular-nums text-[#E10000]">
-                  01
-                </span>
               </div>
-              <p className="mt-1.5 text-sm text-[#A3A3A3]">
+              <p className="mt-2 text-sm text-[var(--muted)]">
                 The good posts, primary docs, and real fee metrics across Web3
                 &amp; crypto.
               </p>
             </div>
 
             <div className="flex justify-center" aria-hidden="true">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[#E10000]/50 bg-[#E10000]/15 text-[#FF6B63]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--accent)]/50 bg-[var(--accent)]/15 text-[var(--accent-text)]">
                 <ArrowRight className="h-4 w-4 rotate-90" />
               </div>
             </div>
 
-            <div className="rounded-[20px] border-[1.5px] border-[#E10000]/60 bg-[#161616] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_24px_rgba(225,0,0,0.16)]">
-              <div className="flex items-center justify-between">
-                <span className="font-display text-xl font-bold text-white">
+            <div className="rounded-xl border border-[var(--accent)] bg-[var(--surface-2)] p-4 shadow-[0_0_20px_var(--accent-glow)]">
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex items-center rounded-md border border-[var(--accent)]/40 bg-[var(--bg)] px-2 py-0.5 font-display text-xs font-bold tabular-nums text-[var(--accent-text)]">
+                  Phase 02
+                </span>
+                <span className="font-display text-base font-bold text-[var(--text)]">
                   I repost &amp; archive
                 </span>
-                <span className="font-display text-xl font-bold tabular-nums text-[#FF6B63]">
-                  02
-                </span>
               </div>
-              <p className="mt-1.5 text-sm text-[#F2F2F2]">
+              <p className="mt-2 text-sm text-[var(--text)]">
                 The best ones land in your feed—backed by saved checklists you
                 can check anytime.
               </p>
@@ -164,11 +164,13 @@ export function MethodologyPartnerSection() {
           </div>
         </div>
 
-        <div className="mt-6 flex items-center gap-2 border-t-[1.5px] border-[#2A2A2A] pt-4 text-xs text-[#A3A3A3]">
+        <div className="mt-5 flex items-center gap-2 border-t border-[var(--border)] pt-4 text-xs text-[var(--muted)]">
           <CrownMark className="h-4 w-4 shrink-0" />
           <span>
             Curated by{' '}
-            <span className="font-mono text-[#FF6B63]">{X_PROFILE.handle}</span>
+            <span className="font-mono text-[var(--accent-text)]">
+              {X_PROFILE.handle}
+            </span>
           </span>
         </div>
       </Card>
@@ -176,69 +178,83 @@ export function MethodologyPartnerSection() {
       {/* Right: Monetization & Sponsored Research Partnerships */}
       <Card
         id="partner-hub"
-        className="scroll-mt-24 p-4 sm:p-8 lg:col-span-7"
+        className="scroll-mt-28 p-4 sm:p-6 lg:col-span-7"
       >
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b-[1.5px] border-[#2A2A2A] pb-6">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-[#FF6B63]">
-              <CrownMark className="h-4 w-4 shrink-0" />
-              <span>SPONSORSHIPS &amp; RESEARCH PARTNERSHIPS</span>
-            </div>
-            <h2 className="mt-2 font-display text-[28px] font-bold leading-tight tracking-tight text-white">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--border)] pb-5">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold tracking-widest uppercase text-[var(--muted)]">
+              SPONSORSHIPS &amp; RESEARCH PARTNERSHIPS
+            </p>
+            <h2 className="heading-section mt-1.5 font-display font-bold tracking-tight text-[var(--text)]">
               Work With Toxicology Archive
             </h2>
           </div>
 
           <Button variant="secondary" onClick={handleDownloadMediaKit}>
-            <Download className="h-4 w-4 text-[#FF6B63]" />
+            <Download className="h-4 w-4 text-[var(--accent-text)]" />
             Download Media Brief
           </Button>
         </div>
 
-        {/* Partnership Deliverables */}
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {PARTNERSHIP_FORMATS.map((fmt) => (
-            <div
-              key={fmt.id}
-              className="flex flex-col justify-between rounded-[20px] border-[1.5px] border-[#2A2A2A] bg-[#161616] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-            >
-              <div>
-                <span className="font-display text-xl font-bold tabular-nums text-[#E10000]">
-                  {fmt.number}
-                </span>
-                <h3 className="mt-2 font-display text-sm font-bold leading-snug text-white">
-                  {fmt.title}
-                </h3>
-                <p className="mt-2 text-xs leading-relaxed text-[#A3A3A3]">
-                  {fmt.deliverable}
+        {/* Partnership Formats: grid-cols-2 on mobile (last odd card sits naturally in own row), md:grid-cols-3 */}
+        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
+          {PARTNERSHIP_FORMATS.map((fmt) => {
+            const active = formatId === fmt.id;
+            return (
+              <button
+                key={fmt.id}
+                type="button"
+                onClick={() => setFormatId(fmt.id)}
+                className={`flex min-w-0 cursor-pointer flex-col justify-between rounded-xl border p-3.5 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-text)] sm:p-4 ${
+                  active
+                    ? 'border-[var(--accent)] bg-[var(--surface-2)] shadow-[0_0_18px_var(--accent-glow)]'
+                    : 'border-[var(--border)] bg-[var(--bg)] hover:border-[var(--accent)]/60'
+                }`}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="inline-flex items-center rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 font-display text-xs font-bold tabular-nums text-[var(--accent-text)]">
+                      Format {fmt.number}
+                    </span>
+                    <Layers
+                      className="h-4 w-4 shrink-0 text-[var(--muted)]"
+                      aria-hidden="true"
+                    />
+                  </div>
+                  <h3 className="mt-2.5 font-display text-sm font-bold leading-snug text-[var(--text)]">
+                    {fmt.title}
+                  </h3>
+                  <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-[var(--muted)]">
+                    {fmt.deliverable}
+                  </p>
+                </div>
+                <p className="mt-3 border-t border-[var(--border)] pt-2 text-xs font-semibold text-[var(--text)]">
+                  {fmt.turnaround}
                 </p>
-              </div>
-              <p className="mt-3 border-t border-[#2A2A2A] pt-2.5 text-xs font-semibold text-[#F2F2F2]">
-                {fmt.turnaround}
-              </p>
-            </div>
-          ))}
+              </button>
+            );
+          })}
         </div>
 
         {/* Validated Partner Inquiry Form */}
         <form
           onSubmit={handleSubmit}
-          className="mt-6 space-y-4 rounded-[20px] border-[1.5px] border-[#2A2A2A] bg-[#050505] p-4 sm:p-5"
+          className="mt-5 space-y-4 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4 sm:p-5"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-display text-base font-bold text-white">
+            <h3 className="font-display text-base font-bold text-[var(--text)]">
               Request a Sponsored Breakdown
             </h3>
-            <span className="text-xs text-[#A3A3A3]">
+            <span className="text-xs text-[var(--muted)]">
               Sponsored posts carry clear disclosure
             </span>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+            <div className="min-w-0">
               <label
                 htmlFor="partner-project"
-                className="block text-xs font-semibold text-[#F2F2F2]"
+                className="block text-xs font-semibold tracking-widest uppercase text-[var(--muted)]"
               >
                 Protocol or Brand Name
               </label>
@@ -251,28 +267,28 @@ export function MethodologyPartnerSection() {
               />
             </div>
 
-            <div>
+            <div className="min-w-0">
               <label
                 htmlFor="partner-contact"
-                className="block text-xs font-semibold text-[#F2F2F2]"
+                className="block text-xs font-semibold tracking-widest uppercase text-[var(--muted)]"
               >
-                X Handle, Telegram, or Email
+                Handle, TG, or Email
               </label>
               <Input
                 id="partner-contact"
                 value={contact}
                 onChange={(e) => setContact(e.target.value)}
-                placeholder="e.g. @handle or team@protocol.xyz"
-                className="mt-2"
+                placeholder="@handle or team@protocol.xyz"
+                className="mt-2 font-mono"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+            <div className="min-w-0">
               <label
                 htmlFor="partner-format"
-                className="block text-xs font-semibold text-[#F2F2F2]"
+                className="block text-xs font-semibold tracking-widest uppercase text-[var(--muted)]"
               >
                 Preferred Format
               </label>
@@ -280,7 +296,7 @@ export function MethodologyPartnerSection() {
                 id="partner-format"
                 value={formatId}
                 onChange={(e) => setFormatId(e.target.value)}
-                className="mt-2 min-h-[44px] w-full rounded-full border-[1.5px] border-[#2A2A2A] bg-[#161616] px-4 py-2 text-sm text-white focus:border-[#E10000] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B63]/60"
+                className="mt-2 min-h-[44px] w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2.5 text-base text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-text)]/60"
               >
                 {PARTNERSHIP_FORMATS.map((f) => (
                   <option key={f.id} value={f.id}>
@@ -290,32 +306,35 @@ export function MethodologyPartnerSection() {
               </select>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <label
                 htmlFor="partner-notes"
-                className="block text-xs font-semibold text-[#F2F2F2]"
+                className="block text-xs font-semibold tracking-widest uppercase text-[var(--muted)]"
               >
-                Campaign Goal &amp; Docs Link
+                Campaign Goal &amp; Docs URL
               </label>
               <Input
                 id="partner-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Product launch, docs URL, target window..."
-                className="mt-2"
+                placeholder="https://docs... / Launch window"
+                className="mt-2 font-mono"
               />
             </div>
           </div>
 
           {error && (
-            <p className="text-xs font-semibold text-[#FF6B63]" role="alert">
+            <p
+              className="text-xs font-semibold text-[var(--accent-text)]"
+              role="alert"
+            >
               {error}
             </p>
           )}
 
           {submitted && (
-            <div className="flex flex-col gap-3 rounded-[20px] border-[1.5px] border-[#E10000] bg-[#161616] p-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-white">
+            <div className="flex flex-col gap-3 rounded-xl border border-[var(--accent)] bg-[var(--surface-2)] p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-[var(--text)]">
                 Inquiry prepared for <strong>{submitted.project}</strong>. Copy
                 and send directly via Telegram or X DM.
               </p>
@@ -323,7 +342,7 @@ export function MethodologyPartnerSection() {
                 <Button variant="subtle" size="compact" onClick={handleCopyBrief}>
                   {copiedDm ? (
                     <>
-                      <Check className="h-4 w-4 text-[#FF6B63]" />
+                      <Check className="h-4 w-4 text-[var(--accent-text)]" />
                       Copied
                     </>
                   ) : (
@@ -352,7 +371,7 @@ export function MethodologyPartnerSection() {
               href={X_PROFILE.telegramUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-h-[44px] items-center font-mono text-xs font-medium text-[#A3A3A3] underline decoration-[#2A2A2A] underline-offset-4 transition-colors hover:text-[#FF6B63] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B63]"
+              className="inline-flex min-h-[44px] items-center font-mono text-xs font-medium text-[var(--muted)] underline decoration-[var(--border)] underline-offset-4 transition-colors hover:text-[var(--accent-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-text)]"
             >
               DM {X_PROFILE.telegramLabel}
             </a>

@@ -1,0 +1,50 @@
+{
+  "lastSyncTimestamp": "2026-11-25T14:40:00.000Z",
+  "reports": [
+    {
+      "id": "permit2-offchain-signature-drainer",
+      "date": "2026-11-20",
+      "title": "Permit2 Batch Approval Phishing via Counterfeit DEX Aggregator",
+      "threatCategory": "Phishing & Wallet Drainer",
+      "severity": "CRITICAL",
+      "symptom": "User connected to a sponsored DEX clone and signed an ERC-20 Permit2 off-chain signature expecting a token swap. All ERC-20 tokens were drained within two blocks with zero on-chain gas paid by the victim.",
+      "diagnosis": "Permit2 signatures grant spender allowances off-chain without broadcasting an immediate approval transaction. The malicious front-end embedded a multi-token PermitBatch transfer call inside an innocent-looking permit request, allowing the attacker contract to pull tokens at will.",
+      "antidote": [
+        "Never sign unverified typed data (EIP-712 / Permit2) prompts from unbookmarked domains.",
+        "Use hardware wallet visual confirmation screens to verify the exact spender address and nonce.",
+        "Periodically review and revoke active allowances via revoke.cash or block explorer approval checkers."
+      ],
+      "sourceUrl": "https://rekt.news"
+    },
+    {
+      "id": "address-poisoning-zero-value-transfer",
+      "date": "2026-11-18",
+      "title": "Vanity Address Poisoning via Automated Zero-Value Dust Spams",
+      "threatCategory": "Address Poisoning",
+      "severity": "HIGH",
+      "symptom": "Victim meant to send 12,000 USDT to their exchange deposit address. They copied the last address from their wallet transaction history, which turned out to be an attacker vanity address with matching first 4 and last 4 characters.",
+      "diagnosis": "The attacker generated millions of vanity addresses matching frequent transactors and triggered zero-value transfers to inject the lookalike address into the victim's wallet activity log. The user relied on visual muscle memory instead of full-string verification.",
+      "antidote": [
+        "Never copy recipient addresses from recent transaction history lists.",
+        "Save whitelisted destination addresses directly into your wallet's address book.",
+        "Verify the middle 8-12 hex characters of any recipient address before confirming."
+      ],
+      "sourceUrl": "https://cointelegraph.com/news/address-poisoning-phishing-explainer"
+    },
+    {
+      "id": "unverified-proxy-upgrade-timelock-bypass",
+      "date": "2026-11-15",
+      "title": "Flash-Loan Liquidity Siphon via Compromised Proxy Implementation",
+      "threatCategory": "Smart Contract Exploit",
+      "severity": "CRITICAL",
+      "symptom": "Lending vault assets were suddenly drained following an unexpected contract upgrade executed during off-market hours.",
+      "diagnosis": "The protocol used a transparent upgradeable proxy where the admin key was held by a 2-of-4 multisig with no governance timelock. Private keys of two signers were phished via malicious PDF salary proposals, enabling an immediate implementation rewrite that zeroed collateral ratios.",
+      "antidote": [
+        "Verify that all upgradeable protocol contracts enforce a mandatory 48-72h timelock.",
+        "Check that admin keys are distributed to independent institutional signers with hardware multisigs.",
+        "Apply the 3-Step Web3 Filter (Step 02: What breaks first under stress) before depositing yield capital."
+      ],
+      "sourceUrl": "https://decrypt.co"
+    }
+  ]
+}

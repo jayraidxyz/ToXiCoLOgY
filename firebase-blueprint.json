@@ -1,0 +1,158 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile metadata stored per authenticated Google account.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID matching document ID",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "description": "User Google email address",
+          "maxLength": 256
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User Google display name",
+          "maxLength": 128
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Avatar photo URL from Google Auth",
+          "maxLength": 1024
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of account registration",
+          "maxLength": 64
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last activity",
+          "maxLength": 64
+        }
+      },
+      "required": ["userId", "email", "createdAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "AI Research chat history messages stored for persistent access across visits.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique message identifier",
+          "maxLength": 64
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID",
+          "maxLength": 128
+        },
+        "role": {
+          "type": "string",
+          "description": "Sender role",
+          "enum": ["user", "model"],
+          "maxLength": 16
+        },
+        "text": {
+          "type": "string",
+          "description": "Message content",
+          "maxLength": 12000
+        },
+        "sources": {
+          "type": "array",
+          "description": "Optional Google Search grounding reference URLs"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp ISO string",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "userId", "role", "text", "createdAt"]
+    },
+    "SavedDocument": {
+      "title": "SavedDocument",
+      "description": "Custom verified checklists and briefs saved by the user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique document identifier",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID",
+          "maxLength": 128
+        },
+        "code": {
+          "type": "string",
+          "description": "Document code identifier e.g. DOC-01",
+          "maxLength": 32
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the research document",
+          "maxLength": 256
+        },
+        "category": {
+          "type": "string",
+          "description": "Document category",
+          "maxLength": 64
+        },
+        "summary": {
+          "type": "string",
+          "description": "Short summary of the document",
+          "maxLength": 1024
+        },
+        "content": {
+          "type": "string",
+          "description": "Full document markdown notes",
+          "maxLength": 30000
+        },
+        "tweetDraft": {
+          "type": "string",
+          "description": "Tweet draft for X",
+          "maxLength": 1024
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Downloadable file name",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "userId", "code", "title", "category", "content", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "UserProfile"
+      },
+      "description": "User profile metadata isolated strictly to the authenticated user."
+    },
+    "/users/{userId}/chatHistory/{messageId}": {
+      "schema": {
+        "$ref": "ChatMessage"
+      },
+      "description": "Individual AI Research chat message history for the authenticated user."
+    },
+    "/users/{userId}/savedDocs/{docId}": {
+      "schema": {
+        "$ref": "SavedDocument"
+      },
+      "description": "Personal saved research briefs and checklists synced with the Archive Vault."
+    }
+  }
+}
