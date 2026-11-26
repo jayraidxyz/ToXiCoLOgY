@@ -33,7 +33,13 @@ import { MascotAvatar } from './CrownMark';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Input, Textarea } from './ui/input';
-import { deleteUserDoc, getUserDocs, saveUserDoc } from '../lib/firebase';
+import {
+  deleteUserDoc,
+  getUserDocs,
+  getUserThreatReports,
+  saveUserDoc,
+  saveUserThreatReport,
+} from '../lib/firebase';
 
 const STORAGE_KEY = 'toxicology_archive_docs_v1';
 const THREATS_STORAGE_KEY = 'toxicology_threat_reports_v1';
@@ -108,6 +114,16 @@ export function ArchiveVaultSection({
   const [syncError, setSyncError] = useState<string | null>(null);
   const [lastSyncedTime, setLastSyncedTime] = useState<string | null>(null);
 
+  // Live Threat Reports State
+  const [vaultTab, setVaultTab] = useState<'briefs' | 'threats'>('briefs');
+  const [threatReports, setThreatReports] = useState<ToxicologyReport[]>([]);
+  const [lastThreatSync, setLastThreatSync] = useState<string | null>(null);
+  const [isScanningThreats, setIsScanningThreats] = useState(false);
+  const [threatScanNotice, setThreatScanNotice] = useState<string | null>(null);
+  const [copiedThreadId, setCopiedThreadId] = useState<string | null>(null);
+  const [savedThreatDocId, setSavedThreatDocId] = useState<string | null>(null);
+  const [threatFilter, setThreatFilter] = useState<'ALL' | 'CRITICAL' | 'HIGH' | 'MODERATE'>('ALL');
+
   /**
    * syncArchive:
    * Pushes local storage data to the user's Firestore collection when authenticated,
@@ -172,6 +188,46 @@ export function ArchiveVaultSection({
         console.warn('LocalStorage quota warning in syncArchive:', err);
       }
 
+      // 5. Also sync diagnosed live threat reports to/from Firestore subcollection
+      let localThreats: ToxicologyReport[] = [];
+      try {
+        const storedThreats = window.localStorage.getItem(THREATS_STORAGE_KEY);
+        if (storedThreats) {
+          const parsedThreats = JSON.parse(storedThreats);
+          if (Array.isArray(parsedThreats)) {
+            localThreats = parsedThreats;
+          }
+        }
+      } catch (err) {
+        console.warn('Error reading threat reports from localStorage:', err);
+      }
+
+      const localThreatMap = new Map<string, ToxicologyReport>();
+      threatReports.forEach((r) => localThreatMap.set(r.id, r));
+      localThreats.forEach((r) => localThreatMap.set(r.id, r));
+      const combinedLocalThreats = Array.from(localThreatMap.values());
+
+      for (const threatItem of combinedLocalThreats) {
+        await saveUserThreatReport(user.uid, threatItem);
+      }
+
+      const remoteThreats = await getUserThreatReports(user.uid);
+      if (remoteThreats.length > 0 || combinedLocalThreats.length > 0) {
+        const unifiedThreatMap = new Map<string, ToxicologyReport>();
+        remoteThreats.forEach((r) => unifiedThreatMap.set(r.id, r));
+        combinedLocalThreats.forEach((r) => unifiedThreatMap.set(r.id, r));
+        const unifiedThreats = Array.from(unifiedThreatMap.values()).sort((a, b) =>
+          (b.date || '').localeCompare(a.date || '')
+        );
+        setThreatReports(unifiedThreats);
+        try {
+          window.localStorage.setItem(
+            THREATS_STORAGE_KEY,
+            JSON.stringify(unifiedThreats)
+          );
+        } catch {}
+      }
+
       setIsCloudSynced(true);
       const timestamp = new Date().toLocaleTimeString([], {
         hour: '2-digit',
@@ -188,23 +244,15 @@ export function ArchiveVaultSection({
     } finally {
       setIsSyncing(false);
     }
-  }, [user, customDocs, onOpenLogin]);
+  }, [user, customDocs, threatReports, onOpenLogin]);
 
   // Synchronize document vault on sign-in
   useEffect(() => {
     if (user?.uid) {
       void syncArchive();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid]);
-
-  // Live Threat Reports State
-  const [vaultTab, setVaultTab] = useState<'briefs' | 'threats'>('briefs');
-  const [threatReports, setThreatReports] = useState<ToxicologyReport[]>([]);
-  const [lastThreatSync, setLastThreatSync] = useState<string | null>(null);
-  const [isScanningThreats, setIsScanningThreats] = useState(false);
-  const [threatScanNotice, setThreatScanNotice] = useState<string | null>(null);
-  const [copiedThreadId, setCopiedThreadId] = useState<string | null>(null);
-  const [threatFilter, setThreatFilter] = useState<'ALL' | 'CRITICAL' | 'HIGH' | 'MODERATE'>('ALL');
 
   /**
    * syncLiveThreats:
@@ -643,7 +691,7 @@ Signal, not noise. @toxicologyavp`;
                   onClick={() => void syncArchive()}
                   disabled={isSyncing}
                   className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border border-[var(--accent)]/50 bg-[var(--surface-2)] px-2 text-[10px] font-bold text-[var(--accent-text)] transition-colors hover:bg-[var(--accent)] hover:text-white disabled:opacity-50"
-                  title={user ? 'Push local storage to Firestore' : 'Sign in with Google to sync archive'}
+                  title={user ? 'Push local storage to Firestore' : 'Sign in with Firebase to sync archive'}
                 >
                   <RefreshCw
                     className={`h-2.5 w-2.5 ${isSyncing ? 'animate-spin' : ''}`}
@@ -765,8 +813,10 @@ Signal, not noise. @toxicologyavp`;
         )}
       </div>
 
-      {/* Add File / Document Form Drawer */}
-      {showAddForm && (
+      {vaultTab === 'briefs' && (
+        <>
+          {/* Add File / Document Form Drawer */}
+          {showAddForm && (
         <form
           onSubmit={handleCreateDocument}
           className="mt-5 space-y-4 rounded-xl border border-[var(--accent)]/60 bg-[var(--bg)] p-4 sm:p-5"
@@ -1158,6 +1208,278 @@ Signal, not noise. @toxicologyavp`;
           </div>
         )}
       </div>
+        </>
+      )}
+
+      {vaultTab === 'threats' && (
+        <div className="mt-5 space-y-4">
+          {/* Status Notice Banner */}
+          {threatScanNotice && (
+            <div
+              role="status"
+              className="flex items-center justify-between gap-3 rounded-xl border border-[var(--accent)]/50 bg-[var(--accent)]/10 px-4 py-3 text-xs font-semibold text-[var(--accent-text)]"
+            >
+              <div className="flex items-center gap-2">
+                <Radio className="h-4 w-4 shrink-0" />
+                <span>{threatScanNotice}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setThreatScanNotice(null)}
+                className="cursor-pointer rounded-md p-1 text-[var(--muted)] hover:text-[var(--text)]"
+                aria-label="Dismiss scan notice"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Severity Filter Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div
+              role="tablist"
+              aria-label="Filter threat reports by severity"
+              className="flex flex-wrap items-center gap-2"
+            >
+              {(['ALL', 'CRITICAL', 'HIGH', 'MODERATE'] as const).map((sev) => {
+                const active = threatFilter === sev;
+                const count =
+                  sev === 'ALL'
+                    ? threatReports.length
+                    : threatReports.filter((r) => r.severity.toUpperCase() === sev).length;
+                return (
+                  <button
+                    key={sev}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setThreatFilter(sev)}
+                    className={`min-h-[40px] cursor-pointer rounded-full border px-4 py-1.5 font-mono text-xs font-bold tracking-wider transition-all ${
+                      active
+                        ? 'border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_0_14px_var(--accent-glow)]'
+                        : 'border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--text)]'
+                    }`}
+                  >
+                    {sev} ({count})
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="font-mono text-[11px] text-[var(--muted)]">
+              Auto-diagnoses Web3 incidents via <span className="text-[var(--text)]">gemini-2.5-flash</span>
+            </p>
+          </div>
+
+          {/* Threat Report Cards */}
+          {isScanningThreats && threatReports.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--bg)] p-10 text-center">
+              <RefreshCw className="h-8 w-8 animate-spin text-[var(--accent-text)]" />
+              <p className="mt-4 font-display text-base font-bold text-[var(--text)]">
+                Scanning Live Web3 Security Feeds...
+              </p>
+              <p className="mt-1 max-w-md text-xs text-[var(--muted)]">
+                Deduplicating incidents and generating forensic Toxicology Reports sequentially.
+              </p>
+            </div>
+          ) : filteredThreats.length === 0 ? (
+            <div className="flex flex-col items-center rounded-xl border border-[var(--border)] bg-[var(--bg)] p-8 text-center">
+              <MascotAvatar size="md" />
+              <p className="mt-4 font-display text-lg font-bold text-[var(--text)]">
+                No threat reports in this severity filter
+              </p>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Run a live scan or switch back to ALL severities.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {threatFilter !== 'ALL' && (
+                  <Button variant="secondary" onClick={() => setThreatFilter('ALL')}>
+                    Show All Reports
+                  </Button>
+                )}
+                <Button
+                  variant="primary"
+                  onClick={() => void syncLiveThreats(true)}
+                  disabled={isScanningThreats}
+                >
+                  <RefreshCw className={`h-4 w-4 ${isScanningThreats ? 'animate-spin' : ''}`} />
+                  Scan Now
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {filteredThreats.map((report) => {
+                const sevUpper = (report.severity || 'HIGH').toUpperCase();
+                const sevStyles =
+                  sevUpper === 'CRITICAL'
+                    ? 'border-[var(--accent)]/60 bg-[var(--accent)]/15 text-[var(--accent-text)]'
+                    : sevUpper === 'HIGH'
+                      ? 'border-amber-500/50 bg-amber-500/10 text-amber-400'
+                      : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400';
+                const vaultDocId = `threat-${report.id}`;
+                const isSavedInVault =
+                  savedThreatDocId === report.id ||
+                  customDocs.some((d) => d.id === vaultDocId);
+
+                const handleSaveThreatToVault = () => {
+                  const newDoc: ArchiveDocument = {
+                    id: vaultDocId,
+                    code: `THREAT-${report.date.replace(/-/g, '').slice(2)}`,
+                    title: report.title,
+                    category: 'Breakdowns',
+                    publishedAt: report.date,
+                    readTime: '2 min autopsy',
+                    summary: report.symptom,
+                    content: `# ${report.title}\n\nSeverity: ${report.severity} · Category: ${report.threatCategory} · Date: ${report.date}\n\n## 1. Surface Symptom\n${report.symptom}\n\n## 2. Forensic Diagnosis\n${report.diagnosis}\n\n## 3. Antidote Protocol\n${report.antidote.map((step, i) => `${i + 1}. ${step}`).join('\n')}\n\nSource: ${report.sourceUrl}`,
+                    tweetDraft: `🚨 TOXICOLOGY REPORT · ${report.severity}\n${report.title}\n\n1. Symptom: ${report.symptom}\n\nFull forensic breakdown:`,
+                    fileName: `${report.id}.md`,
+                    isCustom: true,
+                  };
+                  setCustomDocs((prev) => {
+                    if (prev.some((d) => d.id === vaultDocId)) return prev;
+                    return [newDoc, ...prev];
+                  });
+                  setSavedThreatDocId(report.id);
+                  setTimeout(() => setSavedThreatDocId(null), 2200);
+                  if (user?.uid) {
+                    void saveUserDoc(user.uid, newDoc)
+                      .then(() => setIsCloudSynced(true))
+                      .catch((err) => console.error('Failed to save threat to Firestore:', err));
+                  }
+                };
+
+                return (
+                  <article
+                    key={report.id}
+                    className="flex min-w-0 flex-col justify-between rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 sm:p-5 transition-colors hover:border-[var(--accent)]/50"
+                  >
+                    <div className="space-y-3">
+                      {/* Card Metadata Header */}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 font-mono text-[10px] font-bold tracking-wider uppercase ${sevStyles}`}
+                          >
+                            {sevUpper === 'CRITICAL' ? (
+                              <ShieldAlert className="h-3 w-3" />
+                            ) : (
+                              <AlertTriangle className="h-3 w-3" />
+                            )}
+                            {sevUpper}
+                          </span>
+                          <span className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">
+                            {report.threatCategory}
+                          </span>
+                        </div>
+                        <span className="font-mono text-xs text-[var(--muted)]">
+                          {report.date}
+                        </span>
+                      </div>
+
+                      {/* Headline */}
+                      <h3 className="font-display text-base font-bold leading-snug text-[var(--text)] sm:text-lg">
+                        {report.title}
+                      </h3>
+
+                      {/* Surface Symptom */}
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                        <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-[var(--muted)]">
+                          01 · Surface Symptom
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-[var(--text)] sm:text-sm">
+                          {report.symptom}
+                        </p>
+                      </div>
+
+                      {/* Forensic Diagnosis */}
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                        <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-[var(--accent-text)]">
+                          02 · Forensic Diagnosis
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-[var(--muted)] sm:text-sm">
+                          {report.diagnosis}
+                        </p>
+                      </div>
+
+                      {/* 3-Step Antidote */}
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                        <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-emerald-400">
+                          03 · Antidote Protocol
+                        </p>
+                        <ol className="mt-1.5 space-y-1.5">
+                          {report.antidote.map((step, idx) => (
+                            <li
+                              key={idx}
+                              className="flex items-start gap-2 text-xs leading-relaxed text-[var(--text)]"
+                            >
+                              <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 font-mono text-[10px] font-bold text-emerald-400">
+                                {idx + 1}
+                              </span>
+                              <span>{step}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    </div>
+
+                    {/* Action Footer */}
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          variant="secondary"
+                          size="compact"
+                          onClick={() => void handleCopyThread(report)}
+                        >
+                          {copiedThreadId === report.id ? (
+                            <>
+                              <Check className="h-3.5 w-3.5 text-emerald-400" />
+                              Copied Thread
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-3.5 w-3.5 text-[var(--accent-text)]" />
+                              Copy X Thread
+                            </>
+                          )}
+                        </Button>
+
+                        <Button
+                          variant="subtle"
+                          size="compact"
+                          onClick={handleSaveThreatToVault}
+                        >
+                          {isSavedInVault ? (
+                            <>
+                              <Check className="h-3.5 w-3.5 text-emerald-400" />
+                              Saved to Vault
+                            </>
+                          ) : (
+                            <>
+                              <FilePlus2 className="h-3.5 w-3.5" />
+                              Save to Vault
+                            </>
+                          )}
+                        </Button>
+                      </div>
+
+                      <a
+                        href={report.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex min-h-[36px] items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 text-xs font-semibold text-[var(--muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--text)]"
+                      >
+                        <span>Source</span>
+                        <ArrowUpRight className="h-3.5 w-3.5" />
+                      </a>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </Card>
   );
 }

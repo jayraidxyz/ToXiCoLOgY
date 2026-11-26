@@ -2,7 +2,7 @@
   "entities": {
     "UserProfile": {
       "title": "UserProfile",
-      "description": "User profile metadata stored per authenticated Google account.",
+      "description": "User profile metadata stored per authenticated Firebase account.",
       "type": "object",
       "properties": {
         "userId": {
@@ -12,18 +12,18 @@
         },
         "email": {
           "type": "string",
-          "description": "User Google email address",
+          "description": "User email address (empty for anonymous Firebase sessions)",
           "maxLength": 256
         },
         "displayName": {
           "type": "string",
-          "description": "User Google display name",
+          "description": "User display name",
           "maxLength": 128
         },
-        "photoURL": {
+        "authProvider": {
           "type": "string",
-          "description": "Avatar photo URL from Google Auth",
-          "maxLength": 1024
+          "description": "Firebase sign-in method (password or anonymous)",
+          "maxLength": 32
         },
         "createdAt": {
           "type": "string",
@@ -40,7 +40,7 @@
     },
     "ChatMessage": {
       "title": "ChatMessage",
-      "description": "AI Research chat history messages stored for persistent access across visits.",
+      "description": "AI Research chat history messages stored in Firebase Firestore for persistent access across visits.",
       "type": "object",
       "properties": {
         "id": {
@@ -66,7 +66,7 @@
         },
         "sources": {
           "type": "array",
-          "description": "Optional Google Search grounding reference URLs"
+          "description": "Optional search reference URLs"
         },
         "createdAt": {
           "type": "string",
@@ -133,6 +133,69 @@
         }
       },
       "required": ["id", "userId", "code", "title", "category", "content", "createdAt"]
+    },
+    "ThreatReport": {
+      "title": "ThreatReport",
+      "description": "Diagnosed Web3 threat report archived in Firestore per user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique report slug identifier",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID",
+          "maxLength": 128
+        },
+        "date": {
+          "type": "string",
+          "description": "Report date YYYY-MM-DD",
+          "maxLength": 32
+        },
+        "title": {
+          "type": "string",
+          "description": "Clinical incident headline",
+          "maxLength": 256
+        },
+        "threatCategory": {
+          "type": "string",
+          "description": "Threat classification",
+          "maxLength": 64
+        },
+        "severity": {
+          "type": "string",
+          "description": "Severity level",
+          "enum": ["CRITICAL", "HIGH", "MODERATE"],
+          "maxLength": 16
+        },
+        "symptom": {
+          "type": "string",
+          "description": "Surface symptom description",
+          "maxLength": 1024
+        },
+        "diagnosis": {
+          "type": "string",
+          "description": "Root technical or human-layer cause",
+          "maxLength": 2048
+        },
+        "antidote": {
+          "type": "array",
+          "description": "3-step preventative checklist"
+        },
+        "sourceUrl": {
+          "type": "string",
+          "description": "Original incident report URL",
+          "maxLength": 512
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "userId", "date", "title", "threatCategory", "severity", "symptom", "diagnosis", "antidote", "sourceUrl", "createdAt"]
     }
   },
   "firestore": {
@@ -140,19 +203,25 @@
       "schema": {
         "$ref": "UserProfile"
       },
-      "description": "User profile metadata isolated strictly to the authenticated user."
+      "description": "User profile metadata isolated strictly to the authenticated Firebase user."
     },
     "/users/{userId}/chatHistory/{messageId}": {
       "schema": {
         "$ref": "ChatMessage"
       },
-      "description": "Individual AI Research chat message history for the authenticated user."
+      "description": "Individual AI Research chat message history for the authenticated Firebase user."
     },
     "/users/{userId}/savedDocs/{docId}": {
       "schema": {
         "$ref": "SavedDocument"
       },
       "description": "Personal saved research briefs and checklists synced with the Archive Vault."
+    },
+    "/users/{userId}/threatReports/{reportId}": {
+      "schema": {
+        "$ref": "ThreatReport"
+      },
+      "description": "Diagnosed live threat reports synced to the authenticated Firebase user's vault."
     }
   }
 }

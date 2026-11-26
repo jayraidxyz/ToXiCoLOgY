@@ -1,8 +1,11 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInAnonymously,
+  sendPasswordResetEmail,
+  updateProfile,
   signOut,
   onAuthStateChanged,
   type User,
@@ -10,17 +13,31 @@ import {
 import {
   getFirestore,
   doc,
+  getDoc,
   getDocFromServer,
   collection,
   setDoc,
+  updateDoc,
   getDocs,
   query,
-  orderBy,
+  where,
   deleteDoc,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import type { ChatMessage, GroundingSource } from '../components/ResearchChatPanel';
 import type { ArchiveDocument } from '../data/archive';
+
+export interface CloudThreatReport {
+  id: string;
+  date: string;
+  title: string;
+  threatCategory: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MODERATE' | string;
+  symptom: string;
+  diagnosis: string;
+  antidote: string[];
+  sourceUrl: string;
+}
 
 export enum OperationType {
   CREATE = 'create',
@@ -78,11 +95,9 @@ export function handleFirestoreError(
 // Initialize Firebase App instance
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-// CRITICAL: Must pass databaseId from firebase-applet-config.json
+// CRITICAL: Must pass firestoreDatabaseId from firebase-applet-config.json
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 /**
  * Startup connectivity test required by firebase-integration-rpc
@@ -103,38 +118,93 @@ export async function testConnection(): Promise<boolean> {
 }
 void testConnection();
 
-/**
- * Sign in using Google Auth popup (works reliably inside AI Studio iframe)
- */
-export async function signInWithGoogle(): Promise<User> {
+function sanitizeId(rawId: string, fallbackPrefix = 'item'): string {
+  const cleaned = rawId.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 128);
+  return cleaned || `${fallbackPrefix}-${Date.now().toString(36)}`;
+}
+
+async function upsertUserProfile(
+  user: User,
+  authProvider: 'password' | 'anonymous',
+  explicitDisplayName?: string
+): Promise<void> {
+  const userDocPath = `users/${user.uid}`;
+  const ref = doc(db, 'users', user.uid);
+  const now = new Date().toISOString();
+  const displayName = (
+    explicitDisplayName ||
+    user.displayName ||
+    (user.isAnonymous ? 'Anonymous Researcher' : user.email?.split('@')[0] || 'Archive Member')
+  ).slice(0, 128);
+  const email = (user.email || '').slice(0, 256);
+
   try {
-    const cred = await signInWithPopup(auth, googleProvider);
-    const user = cred.user;
-
-    // Save or update user profile document
-    const userDocPath = `users/${user.uid}`;
-    try {
-      await setDoc(
-        doc(db, 'users', user.uid),
-        {
-          userId: user.uid,
-          email: user.email || '',
-          displayName: user.displayName || 'Toxicology User',
-          photoURL: user.photoURL || '',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, userDocPath);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      await updateDoc(ref, {
+        email,
+        displayName,
+        authProvider,
+        updatedAt: now,
+      });
+    } else {
+      await setDoc(ref, {
+        userId: user.uid,
+        email,
+        displayName,
+        authProvider,
+        createdAt: now,
+        updatedAt: now,
+      });
     }
-
-    return user;
-  } catch (err: unknown) {
-    console.error('Google Sign-In failed:', err);
-    throw err;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, userDocPath);
   }
+}
+
+/**
+ * Sign in with Firebase Email & Password
+ */
+export async function signInWithEmail(
+  email: string,
+  password: string
+): Promise<User> {
+  const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+  await upsertUserProfile(cred.user, 'password');
+  return cred.user;
+}
+
+/**
+ * Create a new Firebase account with Email & Password
+ */
+export async function registerWithEmail(
+  email: string,
+  password: string,
+  displayName?: string
+): Promise<User> {
+  const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  const cleanName = displayName?.trim();
+  if (cleanName) {
+    await updateProfile(cred.user, { displayName: cleanName.slice(0, 128) });
+  }
+  await upsertUserProfile(cred.user, 'password', cleanName);
+  return cred.user;
+}
+
+/**
+ * Start a zero-friction Firebase Anonymous Cloud Session
+ */
+export async function signInGuestFirebase(): Promise<User> {
+  const cred = await signInAnonymously(auth);
+  await upsertUserProfile(cred.user, 'anonymous', 'Guest Cloud Session');
+  return cred.user;
+}
+
+/**
+ * Send password reset email via Firebase Auth
+ */
+export async function sendFirebasePasswordReset(email: string): Promise<void> {
+  await sendPasswordResetEmail(auth, email.trim());
 }
 
 export async function signOutUser(): Promise<void> {
@@ -148,23 +218,33 @@ export async function saveChatMessage(
   userId: string,
   msg: ChatMessage
 ): Promise<void> {
-  const path = `users/${userId}/chatHistory/${msg.id}`;
+  const safeId = sanitizeId(msg.id, 'msg').slice(0, 64);
+  const path = `users/${userId}/chatHistory/${safeId}`;
+  const ref = doc(db, 'users', userId, 'chatHistory', safeId);
+  const sources = Array.isArray(msg.sources) ? msg.sources.slice(0, 25) : [];
+  const text = (msg.text || '').slice(0, 12000);
+
   try {
-    await setDoc(doc(db, 'users', userId, 'chatHistory', msg.id), {
-      id: msg.id,
-      userId,
-      role: msg.role,
-      text: msg.text,
-      sources: msg.sources || [],
-      createdAt: new Date().toISOString(),
-    });
+    const existingSnap = await getDoc(ref);
+    if (existingSnap.exists()) {
+      await updateDoc(ref, { text, sources });
+    } else {
+      await setDoc(ref, {
+        id: safeId,
+        userId,
+        role: msg.role,
+        text,
+        sources,
+        createdAt: new Date().toISOString(),
+      });
+    }
   } catch (err) {
-    handleFirestoreError(err, OperationType.CREATE, path);
+    handleFirestoreError(err, OperationType.WRITE, path);
   }
 }
 
 /**
- * Load persistent chat history from Firestore for the logged-in user
+ * Load persistent chat history from Firestore for the logged-in Firebase user
  */
 export async function getUserChatHistory(
   userId: string
@@ -173,20 +253,22 @@ export async function getUserChatHistory(
   try {
     const q = query(
       collection(db, 'users', userId, 'chatHistory'),
-      orderBy('createdAt', 'asc')
+      where('userId', '==', userId)
     );
     const snapshot = await getDocs(q);
-    const messages: ChatMessage[] = [];
+    const records: Array<ChatMessage & { _createdAt: string }> = [];
     snapshot.forEach((snap) => {
       const d = snap.data();
-      messages.push({
+      records.push({
         id: d.id || snap.id,
         role: d.role,
         text: d.text,
         sources: Array.isArray(d.sources) ? (d.sources as GroundingSource[]) : [],
+        _createdAt: typeof d.createdAt === 'string' ? d.createdAt : '',
       });
     });
-    return messages;
+    records.sort((a, b) => a._createdAt.localeCompare(b._createdAt));
+    return records.map(({ _createdAt: _unused, ...rest }) => rest);
   } catch (err) {
     handleFirestoreError(err, OperationType.LIST, path);
     return [];
@@ -200,20 +282,32 @@ export async function saveUserDoc(
   userId: string,
   docItem: ArchiveDocument
 ): Promise<void> {
-  const path = `users/${userId}/savedDocs/${docItem.id}`;
+  const safeId = sanitizeId(docItem.id, 'doc');
+  const path = `users/${userId}/savedDocs/${safeId}`;
+  const ref = doc(db, 'users', userId, 'savedDocs', safeId);
+
+  const payloadFields = {
+    code: (docItem.code || 'DOC-00').slice(0, 32),
+    title: (docItem.title || 'Untitled Brief').slice(0, 256),
+    category: (docItem.category || 'Saved Files').slice(0, 64),
+    summary: (docItem.summary || '').slice(0, 1024),
+    content: (docItem.content || '').slice(0, 30000),
+    tweetDraft: (docItem.tweetDraft || '').slice(0, 1024),
+    fileName: (docItem.fileName || 'archive-brief.md').slice(0, 128),
+  };
+
   try {
-    await setDoc(doc(db, 'users', userId, 'savedDocs', docItem.id), {
-      id: docItem.id,
-      userId,
-      code: docItem.code,
-      title: docItem.title,
-      category: docItem.category,
-      summary: docItem.summary,
-      content: docItem.content,
-      tweetDraft: docItem.tweetDraft || '',
-      fileName: docItem.fileName,
-      createdAt: new Date().toISOString(),
-    });
+    const existingSnap = await getDoc(ref);
+    if (existingSnap.exists()) {
+      await updateDoc(ref, payloadFields);
+    } else {
+      await setDoc(ref, {
+        id: safeId,
+        userId,
+        ...payloadFields,
+        createdAt: new Date().toISOString(),
+      });
+    }
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);
   }
@@ -222,23 +316,26 @@ export async function saveUserDoc(
 export async function getUserDocs(userId: string): Promise<ArchiveDocument[]> {
   const path = `users/${userId}/savedDocs`;
   try {
-    const snapshot = await getDocs(
-      collection(db, 'users', userId, 'savedDocs')
+    const q = query(
+      collection(db, 'users', userId, 'savedDocs'),
+      where('userId', '==', userId)
     );
+    const snapshot = await getDocs(q);
     const docs: ArchiveDocument[] = [];
     snapshot.forEach((snap) => {
       const d = snap.data();
+      const content = typeof d.content === 'string' ? d.content : '';
       docs.push({
         id: d.id || snap.id,
         code: d.code,
         title: d.title,
         category: d.category,
         summary: d.summary,
-        content: d.content,
+        content,
         tweetDraft: d.tweetDraft,
         fileName: d.fileName,
-        publishedAt: 'Cloud Synced',
-        readTime: `${Math.max(1, Math.ceil(d.content.split(/\s+/).length / 180))} min read`,
+        publishedAt: 'Firebase Synced',
+        readTime: `${Math.max(1, Math.ceil(content.split(/\s+/).length / 180))} min read`,
         isCustom: true,
       });
     });
@@ -253,11 +350,94 @@ export async function deleteUserDoc(
   userId: string,
   docId: string
 ): Promise<void> {
-  const path = `users/${userId}/savedDocs/${docId}`;
+  const safeId = sanitizeId(docId, 'doc');
+  const path = `users/${userId}/savedDocs/${safeId}`;
   try {
-    await deleteDoc(doc(db, 'users', userId, 'savedDocs', docId));
+    await deleteDoc(doc(db, 'users', userId, 'savedDocs', safeId));
   } catch (err) {
     handleFirestoreError(err, OperationType.DELETE, path);
+  }
+}
+
+/**
+ * Sync live threat reports to user's Firestore subcollection
+ */
+export async function saveUserThreatReport(
+  userId: string,
+  report: CloudThreatReport
+): Promise<void> {
+  const safeId = sanitizeId(report.id, 'threat');
+  const path = `users/${userId}/threatReports/${safeId}`;
+  const ref = doc(db, 'users', userId, 'threatReports', safeId);
+
+  const rawSev = (report.severity || 'HIGH').toUpperCase();
+  const severity: 'CRITICAL' | 'HIGH' | 'MODERATE' =
+    rawSev === 'CRITICAL' || rawSev === 'HIGH' || rawSev === 'MODERATE'
+      ? rawSev
+      : 'HIGH';
+
+  const antidote = Array.isArray(report.antidote) && report.antidote.length > 0
+    ? report.antidote.slice(0, 10).map((s) => String(s).slice(0, 512))
+    : ['Verify typed data and contract allowances before signing.'];
+
+  const mutableFields = {
+    date: (report.date || new Date().toISOString().slice(0, 10)).slice(0, 32),
+    title: (report.title || 'Web3 Threat Report').slice(0, 256),
+    threatCategory: (report.threatCategory || 'Security Incident').slice(0, 64),
+    severity,
+    symptom: (report.symptom || '').slice(0, 1024),
+    diagnosis: (report.diagnosis || '').slice(0, 2048),
+    antidote,
+    sourceUrl: (report.sourceUrl || 'https://rekt.news').slice(0, 512),
+  };
+
+  try {
+    const existingSnap = await getDoc(ref);
+    if (existingSnap.exists()) {
+      await updateDoc(ref, mutableFields);
+    } else {
+      await setDoc(ref, {
+        id: safeId,
+        userId,
+        ...mutableFields,
+        createdAt: new Date().toISOString(),
+      });
+    }
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, path);
+  }
+}
+
+export async function getUserThreatReports(
+  userId: string
+): Promise<CloudThreatReport[]> {
+  const path = `users/${userId}/threatReports`;
+  try {
+    const q = query(
+      collection(db, 'users', userId, 'threatReports'),
+      where('userId', '==', userId)
+    );
+    const snapshot = await getDocs(q);
+    const reports: CloudThreatReport[] = [];
+    snapshot.forEach((snap) => {
+      const d = snap.data();
+      reports.push({
+        id: d.id || snap.id,
+        date: d.date,
+        title: d.title,
+        threatCategory: d.threatCategory,
+        severity: d.severity,
+        symptom: d.symptom,
+        diagnosis: d.diagnosis,
+        antidote: Array.isArray(d.antidote) ? d.antidote : [],
+        sourceUrl: d.sourceUrl,
+      });
+    });
+    reports.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    return reports;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.LIST, path);
+    return [];
   }
 }
 

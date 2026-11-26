@@ -2,7 +2,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
+    // Global safety net: default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper primitives
     function isSignedIn() {
       return request.auth != null && request.auth.uid != null;
     }
@@ -15,52 +20,132 @@ service cloud.firestore {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    // Startup connection health check test
-    match /test/connection {
-      allow read: if true;
+    function incoming() {
+      return request.resource.data;
     }
 
-    // User profile document: strictly isolated to the user
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['userId', 'email', 'createdAt'])
+        && data.keys().hasOnly(['userId', 'email', 'displayName', 'authProvider', 'createdAt', 'updatedAt'])
+        && data.userId == userId
+        && data.email is string && data.email.size() <= 256
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 128))
+        && (!('authProvider' in data) || (data.authProvider is string && data.authProvider.size() <= 32))
+        && data.createdAt is string && data.createdAt.size() <= 64
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    function isValidChatMessage(data, userId) {
+      return data.keys().hasAll(['id', 'userId', 'role', 'text', 'createdAt'])
+        && data.keys().hasOnly(['id', 'userId', 'role', 'text', 'sources', 'createdAt'])
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 64
+        && data.userId == userId
+        && data.role in ['user', 'model']
+        && data.text is string && data.text.size() <= 12000
+        && (!('sources' in data) || (data.sources is list && data.sources.size() <= 25))
+        && data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    function isValidSavedDoc(data, userId) {
+      return data.keys().hasAll(['id', 'userId', 'code', 'title', 'category', 'content', 'createdAt'])
+        && data.keys().hasOnly(['id', 'userId', 'code', 'title', 'category', 'summary', 'content', 'tweetDraft', 'fileName', 'createdAt'])
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.userId == userId
+        && data.code is string && data.code.size() <= 32
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 256
+        && data.category is string && data.category.size() <= 64
+        && (!('summary' in data) || (data.summary is string && data.summary.size() <= 1024))
+        && data.content is string && data.content.size() <= 30000
+        && (!('tweetDraft' in data) || (data.tweetDraft is string && data.tweetDraft.size() <= 1024))
+        && (!('fileName' in data) || (data.fileName is string && data.fileName.size() <= 128))
+        && data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    function isValidThreatReport(data, userId) {
+      return data.keys().hasAll(['id', 'userId', 'date', 'title', 'threatCategory', 'severity', 'symptom', 'diagnosis', 'antidote', 'sourceUrl', 'createdAt'])
+        && data.keys().hasOnly(['id', 'userId', 'date', 'title', 'threatCategory', 'severity', 'symptom', 'diagnosis', 'antidote', 'sourceUrl', 'createdAt'])
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.userId == userId
+        && data.date is string && data.date.size() <= 32
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 256
+        && data.threatCategory is string && data.threatCategory.size() <= 64
+        && data.severity in ['CRITICAL', 'HIGH', 'MODERATE']
+        && data.symptom is string && data.symptom.size() <= 1024
+        && data.diagnosis is string && data.diagnosis.size() <= 2048
+        && data.antidote is list && data.antidote.size() > 0 && data.antidote.size() <= 10 && data.antidote[0] is string
+        && data.sourceUrl is string && data.sourceUrl.size() <= 512
+        && data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    // Startup connection health check test
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // User profile document: strictly isolated to the owner
     match /users/{userId} {
-      allow read, get: if isOwner(userId);
+      allow get: if isOwner(userId) && isValidId(userId);
       allow create: if isOwner(userId)
                     && isValidId(userId)
-                    && request.resource.data.userId == userId
-                    && request.resource.data.email is string
-                    && request.resource.data.createdAt is string;
+                    && isValidUserProfile(incoming(), userId);
       allow update: if isOwner(userId)
-                    && request.resource.data.userId == userId
-                    && request.resource.data.email is string;
-      allow delete: if isOwner(userId);
+                    && isValidId(userId)
+                    && isValidUserProfile(incoming(), userId)
+                    && incoming().userId == existing().userId
+                    && incoming().createdAt == existing().createdAt
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'authProvider', 'updatedAt']);
+      allow delete: if isOwner(userId) && isValidId(userId);
 
       // Subcollection: Persistent Gemini AI Chat History
       match /chatHistory/{messageId} {
-        allow read, list, get: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(messageId);
+        allow list: if isOwner(userId) && existing().userId == request.auth.uid;
         allow create: if isOwner(userId)
                       && isValidId(messageId)
-                      && request.resource.data.userId == userId
-                      && request.resource.data.role in ['user', 'model']
-                      && request.resource.data.text is string
-                      && request.resource.data.text.size() <= 12000
-                      && request.resource.data.createdAt is string;
+                      && isValidChatMessage(incoming(), userId);
         allow update: if isOwner(userId)
-                      && request.resource.data.userId == userId;
-        allow delete: if isOwner(userId);
+                      && isValidId(messageId)
+                      && isValidChatMessage(incoming(), userId)
+                      && incoming().userId == existing().userId
+                      && incoming().createdAt == existing().createdAt
+                      && incoming().diff(existing()).affectedKeys().hasOnly(['text', 'sources']);
+        allow delete: if isOwner(userId) && isValidId(messageId);
       }
 
       // Subcollection: Synced Custom Archive Documents
       match /savedDocs/{docId} {
-        allow read, list, get: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(docId);
+        allow list: if isOwner(userId) && existing().userId == request.auth.uid;
         allow create: if isOwner(userId)
                       && isValidId(docId)
-                      && request.resource.data.userId == userId
-                      && request.resource.data.title is string
-                      && request.resource.data.title.size() <= 256
-                      && request.resource.data.content is string
-                      && request.resource.data.content.size() <= 30000;
+                      && isValidSavedDoc(incoming(), userId);
         allow update: if isOwner(userId)
-                      && request.resource.data.userId == userId;
-        allow delete: if isOwner(userId);
+                      && isValidId(docId)
+                      && isValidSavedDoc(incoming(), userId)
+                      && incoming().userId == existing().userId
+                      && incoming().createdAt == existing().createdAt
+                      && incoming().diff(existing()).affectedKeys().hasOnly(['code', 'title', 'category', 'summary', 'content', 'tweetDraft', 'fileName']);
+        allow delete: if isOwner(userId) && isValidId(docId);
+      }
+
+      // Subcollection: Diagnosed Live Threat Reports
+      match /threatReports/{reportId} {
+        allow get: if isOwner(userId) && isValidId(reportId);
+        allow list: if isOwner(userId) && existing().userId == request.auth.uid;
+        allow create: if isOwner(userId)
+                      && isValidId(reportId)
+                      && isValidThreatReport(incoming(), userId);
+        allow update: if isOwner(userId)
+                      && isValidId(reportId)
+                      && isValidThreatReport(incoming(), userId)
+                      && incoming().userId == existing().userId
+                      && incoming().createdAt == existing().createdAt
+                      && incoming().diff(existing()).affectedKeys().hasOnly(['date', 'title', 'threatCategory', 'severity', 'symptom', 'diagnosis', 'antidote', 'sourceUrl']);
+        allow delete: if isOwner(userId) && isValidId(reportId);
       }
     }
   }

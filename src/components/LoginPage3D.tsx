@@ -4,13 +4,24 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   ArrowRight,
   CheckCircle2,
+  Database,
+  Flame,
+  KeyRound,
   Lock,
   LogOut,
+  Mail,
   Shield,
   Sparkles,
+  UserCheck,
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
-import { signInWithGoogle, signOutUser } from '../lib/firebase';
+import {
+  registerWithEmail,
+  sendFirebasePasswordReset,
+  signInGuestFirebase,
+  signInWithEmail,
+  signOutUser,
+} from '../lib/firebase';
 import { CrownMark } from './CrownMark';
 import { createCrownBeaconGroup } from '../three/buildModels';
 import {
@@ -23,10 +34,39 @@ interface LoginPage3DProps {
   onEnterArchive: () => void;
 }
 
+function mapFirebaseAuthError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  if (/auth\/operation-not-allowed|admin-restricted-operation/i.test(raw)) {
+    return 'Enable this sign-in provider in Firebase Console → Authentication → Sign-in method (Email/Password or Anonymous).';
+  }
+  if (/auth\/invalid-credential|auth\/wrong-password|auth\/user-not-found/i.test(raw)) {
+    return 'Invalid email or password. Try again or switch to Create Account.';
+  }
+  if (/auth\/email-already-in-use/i.test(raw)) {
+    return 'An account with this email already exists. Switch to Sign In.';
+  }
+  if (/auth\/weak-password/i.test(raw)) {
+    return 'Password must be at least 6 characters.';
+  }
+  if (/auth\/invalid-email/i.test(raw)) {
+    return 'Please enter a valid email address.';
+  }
+  if (/auth\/too-many-requests/i.test(raw)) {
+    return 'Too many attempts. Wait a moment before retrying.';
+  }
+  return raw || 'Firebase authentication failed.';
+}
+
 export function LoginPage3D({ user, onEnterArchive }: LoginPage3DProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
-  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGuestLoading, setIsGuestLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const container = mountRef.current;
@@ -59,12 +99,10 @@ export function LoginPage3D({ user, onEnterArchive }: LoginPage3DProps) {
     camera.position.set(0, 2.2, 4.8);
     camera.lookAt(0, 1.25, 0);
 
-    // Studio Environment (RoomEnvironment)
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     pmrem.dispose();
 
-    // Studio Lighting
     const hemi = new THREE.HemisphereLight(0xa5b4fc, 0x160909, 0.75);
     scene.add(hemi);
 
@@ -107,12 +145,10 @@ export function LoginPage3D({ user, onEnterArchive }: LoginPage3DProps) {
     shadow.position.y = 0.001;
     scene.add(shadow);
 
-    // Hero 3D Crown Beacon + Mascot Visor
     const beacon = createCrownBeaconGroup();
     beacon.group.position.set(0, 0, 0);
     scene.add(beacon.group);
 
-    // 4 Outer Satellite Beacon Rings
     const ringGeo = new THREE.TorusGeometry(1.65, 0.02, 16, 72);
     const ringMat = new THREE.MeshStandardMaterial({
       color: 0xe10000,
@@ -172,18 +208,55 @@ export function LoginPage3D({ user, onEnterArchive }: LoginPage3DProps) {
     };
   }, []);
 
-  const handleGoogleLogin = async () => {
-    setIsSigningIn(true);
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password) {
+      setAuthError('Enter both email and password.');
+      return;
+    }
+    setIsSubmitting(true);
     setAuthError(null);
+    setResetMessage(null);
     try {
-      await signInWithGoogle();
+      if (authMode === 'signin') {
+        await signInWithEmail(email, password);
+      } else {
+        await registerWithEmail(email, password, displayName);
+      }
       onEnterArchive();
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : 'Google authentication failed.';
-      setAuthError(msg);
+      setAuthError(mapFirebaseAuthError(err));
     } finally {
-      setIsSigningIn(false);
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGuestFirebaseSession = async () => {
+    setIsGuestLoading(true);
+    setAuthError(null);
+    setResetMessage(null);
+    try {
+      await signInGuestFirebase();
+      onEnterArchive();
+    } catch (err: unknown) {
+      setAuthError(mapFirebaseAuthError(err));
+    } finally {
+      setIsGuestLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!email.trim()) {
+      setAuthError('Enter your email address first to reset your password.');
+      return;
+    }
+    setAuthError(null);
+    setResetMessage(null);
+    try {
+      await sendFirebasePasswordReset(email);
+      setResetMessage('Password reset email dispatched via Firebase Auth.');
+    } catch (err: unknown) {
+      setAuthError(mapFirebaseAuthError(err));
     }
   };
 
@@ -204,25 +277,26 @@ export function LoginPage3D({ user, onEnterArchive }: LoginPage3DProps) {
         className="pointer-events-none absolute inset-0 z-0 opacity-75 sm:opacity-90"
       />
 
-      {/* Floating Center Authentication Card (Solid surface, no backdrop-blur over WebGL) */}
+      {/* Floating Center Firebase Authentication Card (Solid surface, no backdrop-blur over WebGL) */}
       <div className="relative z-10 w-full max-w-[460px] rounded-3xl border border-[var(--border)] bg-[var(--surface)]/95 p-6 shadow-[0_20px_70px_rgba(0,0,0,0.85)] sm:p-8">
         <div className="flex flex-col items-center text-center">
           <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--accent)] bg-[#050505] shadow-[0_0_24px_var(--accent-glow)]">
             <CrownMark className="h-8 w-8" />
           </span>
 
-          <p className="mt-4 font-mono text-xs font-bold tracking-widest uppercase text-[var(--accent-text)]">
-            TOXICOLOGY ARCHIVE · GOOGLE AUTH
+          <p className="mt-4 inline-flex items-center gap-1.5 font-mono text-xs font-bold tracking-widest uppercase text-[var(--accent-text)]">
+            <Flame className="h-3.5 w-3.5" />
+            <span>TOXICOLOGY ARCHIVE · FIREBASE CLOUD</span>
           </p>
 
           <h1 className="heading-section mt-1.5 font-display font-bold text-[var(--text)]">
-            {user ? 'Welcome to the Archive' : 'Sign in with Google'}
+            {user ? 'Firebase Session Active' : 'Firebase Archive Access'}
           </h1>
 
           <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
             {user
-              ? 'Your Google Account is connected. AI research history and custom briefs are synced to your cloud account.'
-              : 'Connect your Google account to unlock persistent Gemini AI research history and cloud-synced checklists.'}
+              ? 'Connected directly to Cloud Firestore. Gemini research history and custom archive briefs sync across sessions.'
+              : 'Sign in with Firebase Email & Password or start an instant anonymous Firebase cloud session to sync history and vaults.'}
           </p>
         </div>
 
@@ -230,21 +304,33 @@ export function LoginPage3D({ user, onEnterArchive }: LoginPage3DProps) {
         <div className="mt-5 space-y-2 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-3.5 text-xs">
           <div className="flex items-center gap-2 text-[var(--text)]">
             <Sparkles className="h-4 w-4 shrink-0 text-[var(--accent-text)]" />
-            <span>Persistent Gemini AI due-diligence chat history</span>
+            <span>Persistent Gemini AI chat history stored in Firestore</span>
           </div>
           <div className="flex items-center gap-2 text-[var(--text)]">
-            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-            <span>Synced 3-Step Filter and Archive Vault checklists</span>
+            <Database className="h-4 w-4 shrink-0 text-emerald-400" />
+            <span>Cross-device Archive Vault &amp; live threat sync</span>
           </div>
           <div className="flex items-center gap-2 text-[var(--text)]">
             <Shield className="h-4 w-4 shrink-0 text-[var(--accent-text)]" />
-            <span>Zero wallet risk · Hardened Firestore security rules</span>
+            <span>Strict per-user Firestore isolation &amp; security rules</span>
           </div>
         </div>
 
         {authError && (
-          <div className="mt-4 rounded-xl border border-[var(--accent)] bg-[var(--accent)]/10 p-3 text-xs text-[var(--text)]">
+          <div
+            role="alert"
+            className="mt-4 rounded-xl border border-[var(--accent)] bg-[var(--accent)]/10 p-3 text-xs text-[var(--text)]"
+          >
             {authError}
+          </div>
+        )}
+
+        {resetMessage && (
+          <div
+            role="status"
+            className="mt-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs text-emerald-300"
+          >
+            {resetMessage}
           </div>
         )}
 
@@ -253,25 +339,19 @@ export function LoginPage3D({ user, onEnterArchive }: LoginPage3DProps) {
           {user ? (
             <div className="space-y-3">
               <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-3.5">
-                {user.photoURL ? (
-                  <img
-                    src={user.photoURL}
-                    alt={user.displayName || 'User'}
-                    className="h-10 w-10 rounded-full border border-[var(--accent)] object-cover"
-                  />
-                ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-white">
-                    <Lock className="h-4 w-4" />
-                  </div>
-                )}
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--accent)] bg-[var(--accent)]/20 text-[var(--accent-text)]">
+                  <UserCheck className="h-5 w-5" />
+                </div>
                 <div className="min-w-0 flex-1 text-left">
                   <p className="truncate font-display text-sm font-bold text-[var(--text)]">
-                    {user.displayName || 'Toxicology Member'}
+                    {user.displayName ||
+                      (user.isAnonymous ? 'Anonymous Firebase Session' : 'Firebase Member')}
                   </p>
-                  <p className="truncate text-xs font-mono text-[var(--muted)]">
-                    {user.email}
+                  <p className="truncate font-mono text-xs text-[var(--muted)]">
+                    {user.email || `UID: ${user.uid.slice(0, 12)}...`}
                   </p>
                 </div>
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
               </div>
 
               <button
@@ -289,37 +369,135 @@ export function LoginPage3D({ user, onEnterArchive }: LoginPage3DProps) {
                 className="flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] text-xs font-semibold text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--text)]"
               >
                 <LogOut className="h-4 w-4" />
-                <span>Sign Out ({user.email})</span>
+                <span>Sign Out of Firebase</span>
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
+              {/* Segmented Sign In / Create Account Tabs */}
+              <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('signin');
+                    setAuthError(null);
+                  }}
+                  className={`min-h-[40px] cursor-pointer rounded-xl text-xs font-bold uppercase tracking-wider transition-colors ${
+                    authMode === 'signin'
+                      ? 'bg-[var(--accent)] text-white'
+                      : 'text-[var(--muted)] hover:text-[var(--text)]'
+                  }`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('signup');
+                    setAuthError(null);
+                  }}
+                  className={`min-h-[40px] cursor-pointer rounded-xl text-xs font-bold uppercase tracking-wider transition-colors ${
+                    authMode === 'signup'
+                      ? 'bg-[var(--accent)] text-white'
+                      : 'text-[var(--muted)] hover:text-[var(--text)]'
+                  }`}
+                >
+                  Create Account
+                </button>
+              </div>
+
+              <form onSubmit={handleEmailAuth} className="space-y-3">
+                {authMode === 'signup' && (
+                  <div>
+                    <label
+                      htmlFor="fb-name"
+                      className="sr-only"
+                    >
+                      Handle or Name
+                    </label>
+                    <input
+                      id="fb-name"
+                      type="text"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      placeholder="Display name or @handle (optional)"
+                      className="min-h-[44px] w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 text-base text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none"
+                    />
+                  </div>
+                )}
+
+                <div className="relative">
+                  <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Email address"
+                    aria-label="Email address"
+                    className="min-h-[44px] w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-10 pr-3.5 text-base text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none"
+                  />
+                </div>
+
+                <div className="relative">
+                  <KeyRound className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Password (min 6 chars)"
+                    aria-label="Password"
+                    className="min-h-[44px] w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-10 pr-3.5 text-base text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none"
+                  />
+                </div>
+
+                {authMode === 'signin' && (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => void handlePasswordReset()}
+                      className="cursor-pointer text-xs font-medium text-[var(--muted)] hover:text-[var(--accent-text)]"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex min-h-[48px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-5 text-sm font-bold text-white shadow-[0_0_24px_var(--accent-glow)] transition-all hover:bg-[var(--accent-hover)] active:scale-[0.98] disabled:opacity-50"
+                >
+                  <Lock className="h-4 w-4" />
+                  <span>
+                    {isSubmitting
+                      ? 'Connecting to Firebase...'
+                      : authMode === 'signin'
+                      ? 'Sign In with Firebase'
+                      : 'Create Firebase Account'}
+                  </span>
+                </button>
+              </form>
+
+              <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                <span className="h-px flex-1 bg-[var(--border)]" />
+                <span>OR</span>
+                <span className="h-px flex-1 bg-[var(--border)]" />
+              </div>
+
               <button
                 type="button"
-                onClick={handleGoogleLogin}
-                disabled={isSigningIn}
-                className="flex min-h-[48px] w-full cursor-pointer items-center justify-center gap-3 rounded-2xl bg-white px-5 text-sm font-bold text-black shadow-md transition-all hover:bg-neutral-100 active:scale-[0.98] disabled:opacity-50"
+                onClick={() => void handleGuestFirebaseSession()}
+                disabled={isGuestLoading}
+                className="flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[var(--accent)]/50 bg-[var(--surface-2)] px-4 text-xs font-bold text-[var(--accent-text)] transition-colors hover:bg-[var(--accent)] hover:text-white disabled:opacity-50"
               >
-                <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
+                <Flame className="h-4 w-4" />
                 <span>
-                  {isSigningIn ? 'Connecting...' : 'Sign in with Google'}
+                  {isGuestLoading
+                    ? 'Starting Cloud Session...'
+                    : 'Instant Firebase Guest Session'}
                 </span>
               </button>
 
@@ -328,7 +506,7 @@ export function LoginPage3D({ user, onEnterArchive }: LoginPage3DProps) {
                 onClick={onEnterArchive}
                 className="flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] text-xs font-semibold text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--text)]"
               >
-                <span>Preview Archive as Guest</span>
+                <span>Browse Archive Locally</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
             </div>
